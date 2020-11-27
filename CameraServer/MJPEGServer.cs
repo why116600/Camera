@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -16,11 +17,16 @@ namespace CameraServer
             public Socket m_socket = null;
             public Thread m_thread = null;
             public ServerSocket m_server = null;
+            public MJPEGServer m_parent = null;
 
-            public ClientHandlerSocket(Socket skt, ServerSocket server)
+            public const string strStreamHeader = "HTTP/1.1 200 OK\r\nContent-Type: multipart/x-mixed-replace; boundary=hehe\r\n";
+            public const string strPicHeaderFormat = "\r\nhehe\r\nContent-Type: image/jpeg\r\nContent-Length: {0}\r\n\r\n";
+
+            public ClientHandlerSocket(Socket skt, ServerSocket server, MJPEGServer parent)
             {
                 m_socket = skt;
                 m_server = server;
+                m_parent = parent;
                 m_thread = new Thread(new ThreadStart(this.ToClientThread));
                 m_thread.Start();
             }
@@ -29,7 +35,10 @@ namespace CameraServer
             {
                 int nRecv;
                 byte[] buffer = new byte[1024];
-                string strMsg;
+                //string strMsg;
+                MemoryStream msPic = null;
+                string strPicHeader;
+                //string[] strRequests;
                 while(true)
                 {
                     try
@@ -43,8 +52,36 @@ namespace CameraServer
                     if (nRecv <= 0)
                         break;
 
-                    strMsg = Encoding.ASCII.GetString(buffer, 0, nRecv);
-                    m_server.AddMessage(strMsg);
+                    msPic = m_parent.PictureData;
+                    if(msPic==null)
+                    {
+                        break;
+                    }
+                    try
+                    {
+                        m_socket.Send(Encoding.ASCII.GetBytes(strStreamHeader));
+                        while(m_server.m_bRunning)
+                        {
+                            strPicHeader = string.Format(strPicHeaderFormat, msPic.Length);
+                            m_socket.Send(Encoding.ASCII.GetBytes(strPicHeader));
+                            m_socket.Send(msPic.ToArray());
+                            Thread.Sleep(40);
+                            msPic = m_parent.PictureData;
+                            if (msPic == null)
+                            {
+                                break;
+                            }
+
+                        }
+                    }
+                    catch (SocketException)
+                    {
+                        break;
+                    }
+                    break;
+                    //strMsg = Encoding.ASCII.GetString(buffer, 0, nRecv);
+                    //strRequests = strMsg.Split(new string[] { "\r\n" }, 10, StringSplitOptions.RemoveEmptyEntries);
+                    //m_server.AddMessage(strMsg);
                 }
                 m_socket.Close();
                 m_server.DeleteClient(this);
@@ -107,7 +144,7 @@ namespace CameraServer
                     }
                     lock(this)
                     {
-                        m_aClients.Add(new ClientHandlerSocket(skt,this));
+                        m_aClients.Add(new ClientHandlerSocket(skt, this, m_parent));
                     }
                 }
                 
@@ -179,6 +216,45 @@ namespace CameraServer
 
         ServerSocket m_server = null;
         Thread m_thServer = null;
+        MemoryStream m_msPic = null;
+
+        public MemoryStream PictureData
+        {
+            get
+            {
+                MemoryStream ms = null;
+                BinaryWriter bw;
+                lock(this)
+                {
+                    if (m_msPic == null)
+                        return null;
+                    ms = new MemoryStream();
+                    bw = new BinaryWriter(ms);
+                    bw.Write(m_msPic.ToArray());
+                }
+                return ms;
+            }
+            set
+            {
+                MemoryStream ms = null;
+                BinaryWriter bw;
+                lock(this)
+                {
+                    if (value == null)
+                    {
+                        if (m_msPic != null)
+                            m_msPic.Close();
+                        m_msPic = null;
+                        return;
+                    }
+                    ms = new MemoryStream();
+                    bw = new BinaryWriter(ms);
+                    bw.Write(value.ToArray());
+                    m_msPic = ms;
+                }
+
+            }
+        }
 
         public bool StartServer(string strIP,int nPort)
         {
