@@ -188,6 +188,7 @@
   <ItemGroup>
     <ClInclude Include="ChildView.h" />
     <ClInclude Include="FFCamera.h" />
+    <ClInclude Include="FFDecoder.h" />
     <ClInclude Include="FFEncoder.h" />
     <ClInclude Include="FFMpegCamera.h" />
     <ClInclude Include="framework.h" />
@@ -199,6 +200,7 @@
   <ItemGroup>
     <ClCompile Include="ChildView.cpp" />
     <ClCompile Include="FFCamera.cpp" />
+    <ClCompile Include="FFDecoder.cpp" />
     <ClCompile Include="FFEncoder.cpp" />
     <ClCompile Include="FFMpegCamera.cpp" />
     <ClCompile Include="MainFrm.cpp" />

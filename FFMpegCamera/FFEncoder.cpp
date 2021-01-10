@@ -6,6 +6,8 @@ FFEncoder::FFEncoder()
 	:m_pCtx(NULL)
 	, m_sws(NULL)
 	, m_pPacketHandler(NULL)
+	, m_pPacketHandleFunc(NULL)
+	, m_pArg(NULL)
 	, m_iErr(0)
 	, m_width(0)
 	, m_height(0)
@@ -15,10 +17,11 @@ FFEncoder::FFEncoder()
 
 FFEncoder::~FFEncoder()
 {
+	Close();
 
 }
 
-bool FFEncoder::OpenEncoder(AVCodecID codecID, int width, int height, int bitRate, PPACKET_HANDLER_FUNC pFunc, void* pArg)
+bool FFEncoder::OpenEncoder(AVCodecID codecID, int width, int height, int bitRate)
 {
 	AVCodec* pCodec;
 	pCodec = avcodec_find_encoder(codecID);
@@ -40,13 +43,14 @@ bool FFEncoder::OpenEncoder(AVCodecID codecID, int width, int height, int bitRat
 		m_pCtx = NULL;
 		return false;
 	}
-	m_pPacketHandler = pFunc;
-	m_pArg = pArg;
+	m_width = width;
+	m_height = height;
 	return true;
 }
 
-void FFEncoder::OnFrameReceived(uint8_t* picBuf[], int linesize[], int width, int height)
+bool FFEncoder::FeedFrame(uint8_t* picBuf[], int linesize[], int width, int height, PPACKET_HANDLER_FUNC pFunc, void* pArg)
 {
+	bool bRet = false;
 	AVPacket* pkt = av_packet_alloc();
 	AVFrame* frame = av_frame_alloc();
 	frame->format = m_pCtx->pix_fmt;
@@ -60,14 +64,36 @@ void FFEncoder::OnFrameReceived(uint8_t* picBuf[], int linesize[], int width, in
 			break;
 		if ((m_iErr = avcodec_receive_packet(m_pCtx, pkt)) < 0)
 			break;
-		m_pPacketHandler(pkt->data, pkt->size, m_pArg);
+		pFunc(pkt->data, pkt->size, pArg);
+		bRet = true;
 	} while (false);
 	if (m_iErr == AVERROR(EAGAIN))
 	{
+		bRet = true;
 		m_iErr = 0;
 	}
 	av_frame_free(&frame);
 	av_packet_free(&pkt);
+	return bRet;
+}
+
+void EncoderPacketHandler(uint8_t* data, int nSize, void* pArg)
+{
+	FFEncodeEventHandler* pHandler = (FFEncodeEventHandler*)pArg;
+	pHandler->OnPacketReceived(data, nSize);
+}
+
+bool FFEncoder::FeedFrame(uint8_t* picBuf[], int linesize[], int width, int height, FFEncodeEventHandler* pHandler)
+{
+	return FeedFrame(picBuf, linesize, width, height, EncoderPacketHandler, pHandler);
+}
+
+void FFEncoder::OnFrameReceived(uint8_t* picBuf[], int linesize[], int width, int height)
+{
+	if (m_pPacketHandler)
+		FeedFrame(picBuf, linesize, width, height, m_pPacketHandler);
+	else if (m_pPacketHandleFunc)
+		FeedFrame(picBuf, linesize, width, height, m_pPacketHandleFunc, m_pArg);
 }
 
 void FFEncoder::Close()

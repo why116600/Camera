@@ -8,6 +8,8 @@
 #include "ChildView.h"
 
 #include "FFCamera.h"
+#include "FFEncoder.h"
+#include "FFDecoder.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -17,10 +19,19 @@
 // CChildView
 #define WM_CAMERA_PICTURE (WM_USER+100)
 
+
+
 DWORD WINAPI CameraThread(LPVOID pParam)
 {
 	CChildView* pView = (CChildView*)pParam;
-	pView->m_pCamera->CameraThread(pView, AV_PIX_FMT_BGRA);
+	FFEncoder encoder;
+	FFDecoder decoder;
+	
+	encoder.OpenEncoder(AV_CODEC_ID_H264, 640, 480, 1200000);
+	decoder.OpenDecoder(AV_CODEC_ID_H264, 640, 480, 1200000, AV_PIX_FMT_BGRA);
+	encoder.m_pPacketHandler = &decoder;
+	decoder.m_pFrameHandler = pView;
+	pView->m_pCamera->CameraThread(&encoder, AV_PIX_FMT_YUV420P);
 	return 0;
 }
 
