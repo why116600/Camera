@@ -33,7 +33,7 @@ bool FFEncoder::OpenEncoder(AVCodecID codecID, int width, int height, int bitRat
 	m_pCtx->time_base.num = 1;
 	m_pCtx->gop_size = 10;
 	m_pCtx->max_b_frames = 1;
-	//m_pCtx->pix_fmt = AV_PIX_FMT_YUV420P;
+	m_pCtx->pix_fmt = pCodec->pix_fmts[0];//AV_PIX_FMT_YUV420P;
 	if ((m_iErr = avcodec_open2(m_pCtx, pCodec, NULL)) < 0)
 	{
 		avcodec_free_context(&m_pCtx);
