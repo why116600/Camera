@@ -24,14 +24,14 @@
 DWORD WINAPI CameraThread(LPVOID pParam)
 {
 	CChildView* pView = (CChildView*)pParam;
-	FFEncoder encoder;
+	/*FFEncoder encoder;
 	FFDecoder decoder;
 	
 	encoder.OpenEncoder(AV_CODEC_ID_H264, 640, 480, 1200000, AV_PIX_FMT_YUV420P);
 	decoder.OpenDecoder(AV_CODEC_ID_H264, 640, 480, 1200000, AV_PIX_FMT_BGRA);
 	encoder.m_pPacketHandler = &decoder;
-	decoder.m_pFrameHandler = pView;
-	pView->m_pCamera->CameraThread(&encoder, AV_PIX_FMT_YUV420P);
+	decoder.m_pFrameHandler = pView;*/
+	pView->m_pCamera->CameraThread(pView, AV_PIX_FMT_BGRA);
 	return 0;
 }
 
@@ -43,11 +43,14 @@ void OnDecodeFrame(uint8_t* picBuf[], int linesize[], int width, int height, voi
 CChildView::CChildView()
 	:m_pCamera(NULL)
 	, m_bufPic(NULL)
+	, m_dwSize(0)
+	, m_hCameraTh(NULL)
 {
+	//m_rtmp.ConnectToPush("rtmp://222.200.180.49:1935/live/cs", AV_CODEC_ID_H264, 640, 480, 1200000);
 	m_pCamera = FFCamera::CaptureCamera("dshow", "video=USB2.0 PC CAMERA");
 
-	/*m_encoder.OpenEncoder(AV_CODEC_ID_H264, 640, 480, 1200000, AV_PIX_FMT_BGRA);
-	m_decoder.OpenDecoder(AV_CODEC_ID_H264, 640, 480, 1200000, AV_PIX_FMT_BGRA);
+	m_encoder.OpenEncoder(AV_CODEC_ID_H264, 640, 480, 1200000, AV_PIX_FMT_BGRA);
+	/*m_decoder.OpenDecoder(AV_CODEC_ID_H264, 640, 480, 1200000, AV_PIX_FMT_BGRA);
 	m_encoder.m_pPacketHandler = &m_decoder;
 	m_decoder.m_pFrameHandleFunc = OnDecodeFrame;*/
 }
@@ -58,6 +61,8 @@ CChildView::~CChildView()
 		delete[]m_bufPic;
 	if (m_pCamera)
 		delete m_pCamera;
+	if (m_hCameraTh)
+		WaitForSingleObject(m_hCameraTh, INFINITE);
 }
 
 
@@ -97,6 +102,7 @@ void CChildView::OnFrameReceived(uint8_t* picBuf[], int linesize[], int width, i
 	m_rcCamera.right = width;
 	m_rcCamera.bottom = height;
 	memcpy(m_bufPic, picBuf[0], m_dwSize);
+	m_encoder.FeedFrame(picBuf, linesize, width, height, NULL, NULL);
 	//m_encoder.FeedFrame(picBuf,linesize,width,height,&m_decoder);
 	PostMessage(WM_CAMERA_PICTURE, (WPARAM)m_bufPic, (LPARAM)&m_rcCamera);
 	//SendMessage(WM_CAMERA_PICTURE, (WPARAM)picBuf[0], (LPARAM)&rc);
@@ -131,12 +137,25 @@ int CChildView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	if (CWnd::OnCreate(lpCreateStruct) == -1)
 		return -1;
 
+	if (!m_pCamera)
+	{
+		MessageBox(_T("无法打开摄像头"), NULL, MB_ICONERROR);
+		exit(0);
+		return -1;
+	}
+	if (!m_encoder.ConnectRtmp("rtmp://222.200.180.49:1935/live/cs"))
+	{
+		MessageBox(_T("无法连接RTMP服务器"), NULL, MB_ICONERROR);
+		exit(0);
+		return 0;
+	}
 	m_rcCamera.right = m_pCamera->GetWidth();
 	m_rcCamera.bottom = m_pCamera->GetHeight();
 	m_dwSize = m_pCamera->GetWidth() * m_pCamera->GetHeight() * 4;
 	m_bufPic = new BYTE[m_dwSize];
 
-	CreateThread(NULL, 0, CameraThread, this, 0, NULL);
+
+	m_hCameraTh=CreateThread(NULL, 0, CameraThread, this, 0, NULL);
 
 	return 0;
 }

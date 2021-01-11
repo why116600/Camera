@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "FFEncoder.h"
 
+bool g_bNetworkInit = false;
 
 FFEncoder::FFEncoder()
 	:m_pCtx(NULL)
@@ -11,12 +12,22 @@ FFEncoder::FFEncoder()
 	, m_iErr(0)
 	, m_width(0)
 	, m_height(0)
+	, m_rtmp(NULL)
+	, m_pStream(NULL)
+	, m_bConnected(false)
+	, m_counter(0)
 {
 
+	if (!g_bNetworkInit)
+	{
+		avformat_network_init();
+		g_bNetworkInit = true;
+	}
 }
 
 FFEncoder::~FFEncoder()
 {
+	Disconnect();
 	Close();
 
 }
@@ -93,7 +104,15 @@ bool FFEncoder::FeedFrame(uint8_t* picBuf[], int linesize[], int width, int heig
 			m_iErr = 0;
 			break;
 		}
-		pFunc(pkt->data, pkt->size, pArg);
+		if (m_rtmp)
+		{
+			pkt->dts = m_counter;
+			pkt->pts = m_counter;
+			m_counter++;
+			m_iErr = av_interleaved_write_frame(m_rtmp, pkt);
+		}
+		if(pFunc)
+			pFunc(pkt->data, pkt->size, pArg);
 		bRet = true;
 	} while (false);
 	av_frame_free(&frame);
@@ -120,6 +139,36 @@ void FFEncoder::OnFrameReceived(uint8_t* picBuf[], int linesize[], int width, in
 		FeedFrame(picBuf, linesize, width, height, m_pPacketHandleFunc, m_pArg);
 }
 
+bool FFEncoder::ConnectRtmp(const char* szURL)
+{
+	bool bRet = false;
+	if ((m_iErr = avformat_alloc_output_context2(&m_rtmp, NULL, "flv", szURL)) < 0)
+		return false;
+	m_pStream = avformat_new_stream(m_rtmp, NULL);
+	if ((m_iErr = avio_open2(&m_rtmp->pb, szURL, AVIO_FLAG_READ_WRITE, NULL, NULL)) < 0)
+	{
+		avformat_free_context(m_rtmp);
+		m_pCtx = NULL;
+		return false;
+
+	}
+	do
+	{
+		if ((m_iErr = avcodec_parameters_from_context(m_pStream->codecpar, m_pCtx)) < 0)
+			break;
+		if ((m_iErr = avformat_write_header(m_rtmp, NULL)) < 0)
+			break;
+		bRet = true;
+		m_bConnected = true;
+	} while (false);
+	if (!bRet)
+	{
+		Disconnect();
+	}
+	m_counter = 0;
+	return bRet;
+}
+
 void FFEncoder::Close()
 {
 	if (m_sws)
@@ -132,6 +181,22 @@ void FFEncoder::Close()
 	{
 		avcodec_close(m_pCtx);
 		avcodec_free_context(&m_pCtx);
+	}
+}
+
+void FFEncoder::Disconnect()
+{
+	if (m_rtmp)
+	{
+		if (m_bConnected)
+		{
+			av_write_trailer(m_rtmp);
+			m_bConnected = false;
+		}
+		avio_close(m_rtmp->pb);
+		avformat_free_context(m_rtmp);
+		m_rtmp = NULL;
+		m_pStream = NULL;
 	}
 }
 

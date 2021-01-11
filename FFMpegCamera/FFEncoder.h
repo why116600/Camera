@@ -23,6 +23,9 @@ public:
 	virtual void OnFrameReceived(uint8_t* picBuf[], int linesize[], int width, int height);
 	void Close();
 	int GetLastError();
+
+	bool ConnectRtmp(const char* szURL);
+	void Disconnect();
 private:
 	AVPixelFormat m_sourceFmt;
 	AVCodecContext* m_pCtx;
@@ -31,6 +34,11 @@ private:
 	int m_width, m_height;
 	uint8_t* m_data[8];
 	int m_linesize[8];
+private:
+	AVFormatContext* m_rtmp;
+	AVStream* m_pStream;
+	bool m_bConnected;
+	int m_counter;
 public:
 	FFEncodeEventHandler* m_pPacketHandler = NULL;
 	void* m_pArg;

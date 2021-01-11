@@ -28,6 +28,7 @@ public:
 	BYTE* m_bufPic;
 	DWORD m_dwSize;
 	CRect m_rcCamera;
+	HANDLE m_hCameraTh;
 // 操作
 public:
 	virtual void OnFrameReceived(uint8_t* picBuf[], int linesize[], int width, int height);
