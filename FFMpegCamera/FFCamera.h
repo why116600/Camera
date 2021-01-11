@@ -14,6 +14,9 @@ public:
 	FFCamera();
 	~FFCamera();
 
+public:
+	ULONGLONG m_u64Latency;
+
 private:
 	bool m_bRunning;
 	AVInputFormat* m_iFmt;
@@ -23,6 +26,8 @@ private:
 	AVCodecContext* m_pDec;
 public:
 	static FFCamera* CaptureCamera(const char* szFmtName, const char* szCameraName);
+	int GetWidth();
+	int GetHeight();
 	void Close();
 	// …„œÒÕ∑œﬂ≥Ã
 	void CameraThread(PFRAME_RECV_FUNC pFunc, AVPixelFormat pix_fmt,void *pArg=NULL);

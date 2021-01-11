@@ -7,6 +7,9 @@
 
 
 #include "FFCamera.h"
+#include "FFEncoder.h"
+#include "FFDecoder.h"
+
 // CChildView 窗口
 
 class CChildView : public CWnd ,public FFCameraEventHandler
@@ -18,6 +21,13 @@ public:
 // 特性
 public:
 	FFCamera* m_pCamera;
+
+	FFEncoder m_encoder;
+	FFDecoder m_decoder;
+
+	BYTE* m_bufPic;
+	DWORD m_dwSize;
+	CRect m_rcCamera;
 // 操作
 public:
 	virtual void OnFrameReceived(uint8_t* picBuf[], int linesize[], int width, int height);

@@ -68,6 +68,10 @@ bool FFDecoder::FeedPacket(uint8_t* data, int size, PFRAME_RECV_FUNC pFunc, void
 	av_image_alloc(buf, linesize, m_width, m_height, m_targetPixFmt, 32);
 	do
 	{
+		/*m_iErr = AVERROR(EAGAIN);
+		while (m_iErr == AVERROR(EAGAIN))
+		{
+		}*/
 		if ((m_iErr = avcodec_send_packet(m_pCtx, pkt)) < 0)
 			break;
 		m_iErr = avcodec_receive_frame(m_pCtx, m_pFrame);

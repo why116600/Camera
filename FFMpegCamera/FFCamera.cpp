@@ -11,6 +11,7 @@ FFCamera::FFCamera()
 	, m_pDec(NULL)
 	, m_iVideo(-1)
 	, m_bRunning(false)
+	, m_u64Latency(0)
 {
 	if (!g_bInit)
 	{
@@ -70,6 +71,20 @@ FFCamera* FFCamera::CaptureCamera(const char* szFmtName, const char* szCameraNam
 	return pRet;
 }
 
+int FFCamera::GetWidth()
+{
+	if (!m_pDec)
+		return 0;
+	return m_pDec->width;
+}
+
+int FFCamera::GetHeight()
+{
+	if (!m_pDec)
+		return 0;
+	return m_pDec->height;
+}
+
 
 void FFCamera::Close()
 {
@@ -95,6 +110,7 @@ void FFCamera::CameraThread(PFRAME_RECV_FUNC pFunc, AVPixelFormat pix_fmt, void*
 {
 	if (!m_pDec || !m_pCtx)
 		return;
+	ULONGLONG t1, t2;
 	int err = 0;
 	uint8_t* rgbData[8];
 	int rgbLineSize[8] = { 0 };
@@ -127,9 +143,13 @@ void FFCamera::CameraThread(PFRAME_RECV_FUNC pFunc, AVPixelFormat pix_fmt, void*
 			}
 			if (err < 0)
 				break;
+			t1 = GetTickCount64();
 			if ((err = sws_scale(sws_ctx, frame->data, frame->linesize, 0, height, rgbData, rgbLineSize)) < 0)
 				break;
 			pFunc(rgbData, rgbLineSize, width, height, pArg);
+			t2 = GetTickCount64();
+			if (m_u64Latency < (t2 - t1))
+				m_u64Latency = t2 - t1;
 		}
 		if (err < 0)
 			break;
